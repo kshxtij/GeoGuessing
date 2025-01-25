@@ -1,9 +1,10 @@
+import warnings
+
 import torch
 import torch.nn as nn
-from .base_encoder import BaseEncoder
 from transformers import AutoModel, AutoProcessor
 
-import warnings
+from .base_encoder import BaseEncoder
 
 warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub.*")
 
@@ -11,10 +12,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub.
 class DINOImageEncoder(BaseEncoder):
     def __init__(self):
         super(DINOImageEncoder, self).__init__()
-        self.DINO = AutoModel.from_pretrained('facebook/dinov2-base')
-        self.image_processor = AutoProcessor.from_pretrained(
-            "facebook/dinov2-base"
-        )
+        self.DINO = AutoModel.from_pretrained("facebook/dinov2-base")
+        self.image_processor = AutoProcessor.from_pretrained("facebook/dinov2-base")
         self.mlp = nn.Sequential(nn.Linear(768, 768), nn.ReLU(), nn.Linear(768, 512))
 
         # Freeze CLIP

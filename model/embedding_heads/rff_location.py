@@ -1,9 +1,19 @@
-import torch
-import numpy as np
-import torch.nn as nn
 from typing import Optional
+
+import numpy as np
+import torch
+import torch.nn as nn
 from torch import Tensor
+
 from .base_encoder import BaseEncoder
+
+# Constants
+A1 = 1.340264
+A2 = -0.081106
+A3 = 0.000893
+A4 = 0.003796
+SF = 66.50336
+
 
 def sample_b(sigma: float, size: tuple) -> Tensor:
     r"""Matrix of size :attr:`size` sampled from from :math:`\mathcal{N}(0, \sigma^2)`
@@ -18,9 +28,7 @@ def sample_b(sigma: float, size: tuple) -> Tensor:
 
 
 @torch.jit.script
-def gaussian_encoding(
-        v: Tensor,
-        b: Tensor) -> Tensor:
+def gaussian_encoding(v: Tensor, b: Tensor) -> Tensor:
     r"""Computes :math:`\gamma(\mathbf{v}) = (\cos{2 \pi \mathbf{B} \mathbf{v}} , \sin{2 \pi \mathbf{B} \mathbf{v}})`
 
     Args:
@@ -37,8 +45,7 @@ def gaussian_encoding(
 
 
 @torch.jit.script
-def basic_encoding(
-        v: Tensor) -> Tensor:
+def basic_encoding(v: Tensor) -> Tensor:
     r"""Computes :math:`\gamma(\mathbf{v}) = (\cos{2 \pi \mathbf{v}} , \sin{2 \pi \mathbf{v}})`
 
     Args:
@@ -54,10 +61,7 @@ def basic_encoding(
 
 
 @torch.jit.script
-def positional_encoding(
-        v: Tensor,
-        sigma: float,
-        m: int) -> Tensor:
+def positional_encoding(v: Tensor, sigma: float, m: int) -> Tensor:
     r"""Computes :math:`\gamma(\mathbf{v}) = (\dots, \cos{2 \pi \sigma^{(j/m)} \mathbf{v}} , \sin{2 \pi \sigma^{(j/m)} \mathbf{v}}, \dots)`
         where :math:`j \in \{0, \dots, m-1\}`
 
@@ -81,10 +85,13 @@ def positional_encoding(
 class GaussianEncoding(nn.Module):
     """Layer for mapping coordinates using random Fourier features"""
 
-    def __init__(self, sigma: Optional[float] = None,
-                 input_size: Optional[float] = None,
-                 encoded_size: Optional[float] = None,
-                 b: Optional[Tensor] = None):
+    def __init__(
+        self,
+        sigma: Optional[float] = None,
+        input_size: Optional[float] = None,
+        encoded_size: Optional[float] = None,
+        b: Optional[Tensor] = None,
+    ):
         r"""
         Args:
             sigma (Optional[float]): standard deviation
@@ -101,7 +108,8 @@ class GaussianEncoding(nn.Module):
         if b is None:
             if sigma is None or input_size is None or encoded_size is None:
                 raise ValueError(
-                    'Arguments "sigma," "input_size," and "encoded_size" are required.')
+                    'Arguments "sigma," "input_size," and "encoded_size" are required.'
+                )
 
             b = sample_b(sigma, (encoded_size, input_size))
         elif sigma is not None or input_size is not None or encoded_size is not None:
@@ -159,14 +167,8 @@ class PositionalEncoding(nn.Module):
         """
         return positional_encoding(v, self.sigma, self.m)
 
-# Constants
-A1 = 1.340264
-A2 = -0.081106
-A3 = 0.000893
-A4 = 0.003796
-SF = 66.50336
 
-def equal_earth_projection(L):
+def equal_earth_projection(L: Tensor) -> Tensor:
     latitude = L[:, 0]
     longitude = L[:, 1]
     latitude_rad = torch.deg2rad(latitude)
@@ -174,33 +176,39 @@ def equal_earth_projection(L):
     sin_theta = (torch.sqrt(torch.tensor(3.0)) / 2) * torch.sin(latitude_rad)
     theta = torch.asin(sin_theta)
     denominator = 3 * (9 * A4 * theta**8 + 7 * A3 * theta**6 + 3 * A2 * theta**2 + A1)
-    x = (2 * torch.sqrt(torch.tensor(3.0)) * longitude_rad * torch.cos(theta)) / denominator
+    x = (
+        2 * torch.sqrt(torch.tensor(3.0)) * longitude_rad * torch.cos(theta)
+    ) / denominator
     y = A4 * theta**9 + A3 * theta**7 + A2 * theta**3 + A1 * theta
     return (torch.stack((x, y), dim=1) * SF) / 180
 
+
 class LocationEncoderCapsule(nn.Module):
-    def __init__(self, sigma):
+    def __init__(self, sigma: float):
         super(LocationEncoderCapsule, self).__init__()
         rff_encoding = GaussianEncoding(sigma=sigma, input_size=2, encoded_size=256)
         self.km = sigma
-        self.capsule = nn.Sequential(rff_encoding,
-                                     nn.Linear(512, 1024),
-                                     nn.ReLU(),
-                                     nn.Linear(1024, 1024),
-                                     nn.ReLU(),
-                                     nn.Linear(1024, 1024),
-                                     nn.ReLU())
+        self.capsule = nn.Sequential(
+            rff_encoding,
+            nn.Linear(512, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+        )
         self.head = nn.Sequential(nn.Linear(1024, 512))
 
-    def to(self, device):
+    def to(self, device: str):
         self.capsule.to(device)
         self.head.to(device)
         return super().to(device)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         x = self.capsule(x)
         x = self.head(x)
         return x
+
 
 class RFFLocationEncoder(BaseEncoder):
     def __init__(self, sigma=[2**0, 2**4, 2**8]):
@@ -209,23 +217,23 @@ class RFFLocationEncoder(BaseEncoder):
         self.n = len(self.sigma)
 
         for i, s in enumerate(self.sigma):
-            self.add_module('LocEnc' + str(i), LocationEncoderCapsule(sigma=s))
+            self.add_module("LocEnc" + str(i), LocationEncoderCapsule(sigma=s))
 
-    def to(self, device):
+    def to(self, device: str):
         for i in range(self.n):
-            self._modules['LocEnc' + str(i)].to(device)
+            self._modules["LocEnc" + str(i)].to(device)
 
-    def load_weights(self, path):
-            self.load_state_dict(torch.load(path, weights_only=True))
+    def load_weights(self, path: str):
+        self.load_state_dict(torch.load(path, weights_only=True))
 
-    def preprocess(self, x):
-        raise ValueError('Preprocess not required for RFFLocationEncoder')
+    def preprocess(self, x: Tensor):
+        raise ValueError("Preprocess not required for RFFLocationEncoder")
 
-    def forward(self, location):
+    def forward(self, location: Tensor) -> Tensor:
         location = equal_earth_projection(location)
         location_features = torch.zeros(location.shape[0], 512).to(location.device)
 
         for i in range(self.n):
-            location_features += self._modules['LocEnc' + str(i)](location)
-        
+            location_features += self._modules["LocEnc" + str(i)](location)
+
         return location_features

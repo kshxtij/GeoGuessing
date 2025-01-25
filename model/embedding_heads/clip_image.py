@@ -1,9 +1,10 @@
+import warnings
+
 import torch
 import torch.nn as nn
-from .base_encoder import BaseEncoder
-from transformers import CLIPModel, AutoProcessor
+from transformers import AutoProcessor, CLIPModel
 
-import warnings
+from .base_encoder import BaseEncoder
 
 warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub.*")
 
@@ -24,15 +25,15 @@ class CLIPImageEncoder(BaseEncoder):
     def load_weights(self, mlp_weights_path: str):
         self.mlp.load_state_dict(torch.load(mlp_weights_path, weights_only=True))
 
-    def to(self, device):
+    def to(self, device: str):
         self.CLIP.to(device)
         self.mlp.to(device)
 
-    def preprocess(self, image):
+    def preprocess(self, image: torch.Tensor) -> torch.Tensor:
         x = self.image_processor(images=image, return_tensors="pt")["pixel_values"]
         return x
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.CLIP.get_image_features(pixel_values=x)
         x = self.mlp(x)
         return x

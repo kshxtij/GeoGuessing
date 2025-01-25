@@ -1,5 +1,7 @@
-from datasets import load_dataset
 from collections.abc import Callable
+
+from datasets import load_dataset
+
 from .basedataset import BaseDataset
 
 
