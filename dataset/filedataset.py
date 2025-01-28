@@ -1,9 +1,11 @@
-import pandas as pd
 import os
-from tqdm import tqdm
+
+import pandas as pd
 from PIL import Image as image
+from tqdm import tqdm
 
 from .basedataset import BaseDataset
+
 
 class FileDataset(BaseDataset):
     def __init__(self, dataset_file, dataset_folder, transform=None):

@@ -16,6 +16,8 @@
 *.png
 *.jpg
 weights/clip_l14_grit+mim_fultune_6xe.pth
+checkpoints/
+wandb/
 
 ### macOS ###
 # General

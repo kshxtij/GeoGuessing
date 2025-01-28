@@ -1,9 +1,9 @@
 import warnings
 
+import alpha_clip
 import torch
 import torch.nn as nn
 from transformers import AutoProcessor, CLIPModel
-import alpha_clip
 
 from .base_encoder import BaseEncoder
 

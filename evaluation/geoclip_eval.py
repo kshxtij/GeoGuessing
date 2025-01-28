@@ -1,7 +1,8 @@
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 from tqdm import tqdm
+
 
 def train(train_dataloader, model, optimizer, epoch, batch_size, device, scheduler=None, criterion=nn.CrossEntropyLoss()):
     print("Starting Epoch", epoch)
