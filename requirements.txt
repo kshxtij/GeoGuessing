@@ -1,0 +1,9 @@
+alpha_clip==1.0
+datasets==3.2.0
+numpy==2.2.2
+pandas==2.2.3
+Pillow==11.1.0
+torch==2.6.0.dev20241008
+torchvision==0.20.0.dev20241008
+tqdm==4.66.5
+transformers==4.45.2

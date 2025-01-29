@@ -10,7 +10,7 @@ class HFImageDataset(BaseDataset):
         self, huggingface_dataset_name: str, split: str, transform: Callable = None
     ):
         super().__init__()
-        self.dataset = load_dataset(huggingface_dataset_name, split=split)
+        self.dataset = load_dataset(huggingface_dataset_name, split=split, trust_remote_code=True)
         self.transform = transform
 
     def __len__(self):
