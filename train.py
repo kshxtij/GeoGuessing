@@ -50,4 +50,6 @@ for i in range(10):
         wandb.save(f'./checkpoints/{NAME}/{i}/location_encoder_weights.pth')
         wandb.save(f'./checkpoints/{NAME}/{i}/logit_scale_weights.pth')
 
+save_weights(model, f'./checkpoints/{NAME}/final')
+
 wandb.finish()
