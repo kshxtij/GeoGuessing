@@ -19,12 +19,12 @@ echo "Job started at ${dt}"
 # ====================
 # Activate Anaconda environment
 # ====================
-source /home/s2155899/miniconda3/bin/activate mlp
+source /home/${USER}/miniconda3/bin/activate mlp
 
 # ====================
 # RSYNC data from /home/ to /disk/scratch/
 # ====================
-export SCRATCH_HOME=/disk/scratch/s2155899/GeoGuessing
+export SCRATCH_HOME=/disk/scratch/${USER}/GeoGuessing
 export DATA_HOME=/home/GeoGuessing
 export DATA_SCRATCH=${SCRATCH_HOME}/
 mkdir -p ${SCRATCH_HOME}/pgr/data
@@ -54,7 +54,7 @@ python aya_on_anli.py \
 # ====================
 # RSYNC data from /disk/scratch/ to /home/. This moves everything we want back onto the distributed file system
 # ====================
-OUTPUT_HOME=/home/s2148449/ayaonanli
+OUTPUT_HOME=/home/${USER}/ayaonanli
 mkdir -p ${OUTPUT_HOME}
 rsync --archive --update --compress --progress ${OUTPUT_DIR} ${OUTPUT_HOME}
 
