@@ -18,6 +18,7 @@
 weights/clip_l14_grit+mim_fultune_6xe.pth
 checkpoints/
 wandb/
+data/im2gps3ktest/
 
 ### macOS ###
 # General

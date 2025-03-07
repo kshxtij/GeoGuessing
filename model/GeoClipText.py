@@ -18,21 +18,25 @@ def load_gps_data(csv_path: str):
     return gps_tensor
 
 
-class GeoCLIP(nn.Module):
+class GeoCLIPText(nn.Module):
     def __init__(
         self,
         ImageEncoder: BaseEncoder,
-        LocationEncoder: BaseEncoder,
+        GPSLocationEncoder: BaseEncoder,
+        TextLocationEncoder: BaseEncoder,
         gps_gallery_coordinates: str,
         queue_size: int = 64,
     ):
         super().__init__()
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.image_encoder = ImageEncoder
-        self.location_encoder = LocationEncoder
+        self.location_encoder = GPSLocationEncoder
+        self.text_location_encoder = TextLocationEncoder
 
         self.gps_gallery = load_gps_data(gps_gallery_coordinates)
         self._initialize_gps_queue(queue_size)
+
+        self.alpha = nn.Parameter(torch.tensor(0.7))
 
         self.device = "cpu"
 
@@ -40,6 +44,7 @@ class GeoCLIP(nn.Module):
         self.device = device
         self.image_encoder.to(device)
         self.location_encoder.to(device)
+        self.text_location_encoder.to(device)
         self.logit_scale.data = self.logit_scale.data.to(device)
         return super().to(device)
 
@@ -74,12 +79,13 @@ class GeoCLIP(nn.Module):
     def get_gps_queue(self) -> torch.Tensor:
         return self.gps_queue.t()
 
-    def forward(self, image: torch.Tensor, location: torch.Tensor) -> torch.Tensor:
+    def forward(self, image: torch.Tensor, location: torch.Tensor, image_desc: torch.Tensor) -> torch.Tensor:
         """GeoCLIP's forward pass
 
         Args:
             image (torch.Tensor): Image tensor of shape (n, 3, 224, 224)
             location (torch.Tensor): GPS location tensor of shape (m, 2)
+            image_desc (torch.Tensor): Image description tensor of shape (n, 512)
 
         Returns:
             logits_per_image (torch.Tensor): Logits per image of shape (n, m)
@@ -87,24 +93,33 @@ class GeoCLIP(nn.Module):
         # Compute Features
         image_features = self.image_encoder(image)
         location_features = self.location_encoder(location)
+        image_desc_features = self.text_location_encoder(image_desc)
         logit_scale = self.logit_scale.exp()
 
         # Normalize features
         image_features = F.normalize(image_features, dim=1)
         location_features = F.normalize(location_features, dim=1)
+        image_desc_features = F.normalize(image_desc_features, dim=1)
+
+        # Combine image and description features for location matching
+        # multimodal_features = (image_features + image_desc_features) / 2  # Average pooled features
+        # multimodal_features = F.normalize(multimodal_features, dim=1)  # Re-normalize
+        multimodal_features = self.alpha * image_features + (1 - self.alpha) * image_desc_features
+        multimodal_features = F.normalize(multimodal_features, dim=1)
 
         # Cosine similarity (Image Features & Location Features)
-        logits_per_image = logit_scale * (image_features @ location_features.t())
+        logits_per_image = logit_scale * (multimodal_features @ location_features.T)
 
         return logits_per_image
 
     @torch.no_grad()
-    def predict(self, image_path: str, top_k: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def predict(self, image_path: str, image_desc: str, top_k: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Given an image, predict the top k GPS coordinates
 
         Args:
             image_path (str): Path to the image
             top_k (int): Number of top predictions to return
+            image_desc (str): Image description
 
         Returns:
             top_pred_gps (torch.Tensor): Top k GPS coordinates of shape (k, 2)
@@ -114,9 +129,12 @@ class GeoCLIP(nn.Module):
         image = self.image_encoder.preprocess(image)
         image = image.to(self.device)
 
+        image_desc = self.text_location_encoder.preprocess(image_desc)
+        image_desc = image_desc.to(self.device)
+
         gps_gallery = self.gps_gallery.to(self.device)
 
-        logits_per_image = self.forward(image, gps_gallery)
+        logits_per_image = self.forward(image, gps_gallery, image_desc)
         probs_per_image = logits_per_image.softmax(dim=-1).cpu()
 
         # Get top k predictions
